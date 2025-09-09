@@ -1,0 +1,13 @@
+# created by virtualenv automatically
+.venv/
+build/
+dist/
+__pycache__/
+faces/
+model_data/
+.cashe
+PyWhatkit_DB.txt
+testing.spec
+vision.spec
+yolov8n.pt
+api_keys/
