@@ -5,10 +5,11 @@ dist/
 __pycache__/
 faces/
 model_data/
-.cashe
+.cache
 PyWhatkit_DB.txt
 testing.spec
 vision.spec
 yolov8n.pt
 api_keys/
 jarvis_functions/send_message_instagram/
+jarvis_functions/face_recognition.py

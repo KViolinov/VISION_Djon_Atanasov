@@ -226,3 +226,16 @@
 # ser.close()
 # print("Connection is ended.")
 
+
+from spotipy import Spotify
+from spotipy.oauth2 import SpotifyOAuth
+
+sp = Spotify(auth_manager=SpotifyOAuth(
+    client_id="dacc19ea9cc44decbdcb2959cd6eb74a",
+    client_secret="11e970f059dc4265a8fe64aaa80a82bf",
+    redirect_uri="http://localhost:8888/callback",
+    scope="user-read-playback-state,user-modify-playback-state"
+))
+
+devices = sp.devices()
+print(devices)

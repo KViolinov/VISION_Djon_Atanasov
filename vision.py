@@ -1,29 +1,46 @@
 # vision ver 1.2 for live demo Djon Atanasov - 2025
 
 import io
+import os
 import re
 import math
 import pygame
 import random
 import spotipy
 import requests
-import win32com.client as win32
-from datetime import datetime, timedelta
 import dateparser
-from docx import Document
 import subprocess
-from openai import OpenAI
-import ollama
 from enum import Enum
 
-from jarvis_functions.gemini_vision_method import *
-from jarvis_functions.call_phone_method import *
-from jarvis_functions.whatsapp_messaging_method import *
-from jarvis_functions.ocr_model_method import *
-from jarvis_functions.shazam_method import *
-from jarvis_functions.send_message_instagram.input_to_message_ai import *
+from docx import Document
+import win32com.client as win32
+
+from PIL import ImageGrab
+
+import ollama
+from openai import OpenAI
+import google.generativeai as genai
+
+import speech_recognition as sr
+from elevenlabs import play
+from elevenlabs.client import ElevenLabs
+
+from datetime import datetime, timedelta
+
+
+from jarvis_functions.call_phone_method import call_phone
+
+from jarvis_functions.shazam_method import recognize_audio
+from jarvis_functions.play_spotify import play_song
+
+from jarvis_functions.whatsapp_messaging_method import whatsapp_send_message
+
 from jarvis_functions.send_message_instagram.send_message import *
-from jarvis_functions.send_message_instagram.username_locator import *
+from jarvis_functions.send_message_instagram.input_to_message_ai import *
+
+from jarvis_functions.gemini_vision_method import gemini_vision
+from jarvis_functions.make_screenshot import make_screenshot
+
 from api_keys.api_keys import ELEVEN_LABS_API, GEMINI_KEY, SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET
 
 # Initialize Pygame
@@ -48,7 +65,6 @@ jazz_playlist_url = "spotify:playlist/60joMYdXRjtwwfyERiGu4c?si=42cc553fb755446d
 
 # Setting up Gemini
 os.environ["GEMINI_API_KEY"] = GEMINI_KEY
-
 genai.configure(api_key=os.environ["GEMINI_API_KEY"])
 
 model = genai.GenerativeModel(model_name="gemini-1.5-flash")
@@ -78,20 +94,6 @@ chat = model.start_chat(
 WIDTH, HEIGHT = 1920, 1080
 screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.RESIZABLE)
 pygame.display.set_caption("Jarvis Interface")
-
-# Colors
-# BLACK = (0, 0, 0)
-# WHITE = (255, 255, 255)
-# BLUE = (0, 128, 255)
-# CYAN = (0, 255, 255)
-# ORANGE1 = (255, 165, 0)
-# ORANGE2 = (255, 115, 0)
-# GREEN1 = (0, 219, 0)
-# GREEN2 = (4, 201, 4)
-# PINK1 = (255, 182, 193)  # Light Pink
-# PINK2 = (255, 105, 180)  # Hot Pink
-# PURPLE1 = (166, 0, 255)
-# PURPLE2 = (176, 28, 255)
 
 class Color(Enum):
     BLACK = (0, 0, 0)
@@ -163,7 +165,10 @@ selected_songs = [
 
 status_list = []
 
-jarvis_voice = "Brian" #deffault voice
+jarvis_name = "Джарвис"
+
+voices = ["Brian", "Jessica", "Roger", "Samantha"]
+jarvis_voice = voices[0] #deffault voice
 
 # Ball initial random positions
 random_particles = [{"x": random.randint(0, WIDTH), "y": random.randint(0, HEIGHT),
@@ -399,6 +404,45 @@ def draw_dropdown(surface, x, y, w, h, font, options, selected, is_open):
             option_surface = font.render(option, True, Color.BLACK.value)
             surface.blit(option_surface, (x + 5, y + (h - option_surface.get_height()) // 2 + (i + 1) * h))
 
+def write_to_file(role:str, input:str):
+    if (role == "user"):
+        with open("history.txt", "a", encoding="utf-8") as file:
+            file.write("\nUser - " + input)
+
+    elif (role == "model"):
+        with open("history.txt", "a", encoding="utf-8") as file:
+            file.write("\nModel - " + input)
+
+def read_from_file():
+    with open("example.txt", "r", encoding="utf-8") as file:
+        lines = file.readlines()
+        print(lines)
+
+# def show_live_caption_text(text, position=(WIDTH // 2, HEIGHT // 2), font=None, color=(255, 255, 255)):
+#     if font is None:
+#         font = font_large
+#     text_surface = font.render(text, True, color)
+#     text_rect = text_surface.get_rect(center=position)
+#     alpha = 255
+#     fade_duration = 2  # seconds
+#     fade_steps = 30
+#     delay = fade_duration / fade_steps
+#
+#     # Show text for 2 seconds
+#     screen.blit(text_surface, text_rect)
+#     pygame.display.flip()
+#     time.sleep(2)
+#
+#     # Fade out
+#     for step in range(fade_steps):
+#         screen.fill(Color.BLACK.value)
+#         faded_surface = text_surface.copy()
+#         faded_surface.set_alpha(alpha)
+#         screen.blit(faded_surface, text_rect)
+#         pygame.display.flip()
+#         alpha = max(0, alpha - int(255 / fade_steps))
+#         time.sleep(delay)
+
 def record_text():
     """Listen for speech and return the recognized text."""
     try:
@@ -420,7 +464,7 @@ def record_text():
         return None
 
 def chatbot():
-    global wake_word_detected, model_answering, is_generating
+    global wake_word_detected, model_answering, is_generating, jarvis_voice, jarvis_name, selected_model
 
     print("Welcome to Vision! Say any of the models name to activate. Say 'exit' to quit.")
 
@@ -430,31 +474,38 @@ def chatbot():
             print("Waiting for wake word...")
             user_input = record_text()
 
-            if user_input and ("джарвис" in user_input
-                               or "джарви" in user_input
-                               or "джервис" in user_input
-                               or "jarvis" in user_input
-                               or "черви" in user_input):
+            if user_input:
+                should_wake = False
+                user_input_lower = user_input.lower()
 
-                wake_word_detected = True
-                pygame.mixer.music.load("sound_files/beep.flac")
-                pygame.mixer.music.play()
+                if jarvis_name == "Джарвис":
+                    if any(word in user_input_lower for word in ["джарвис", "джарви", "джервис", "jarvis", "черви"]):
+                        should_wake = True
+                else:
+                    # For custom names, check if it's contained in the input
+                    if jarvis_name.lower() in user_input_lower:
+                        should_wake = True
 
-                print("✅ Wake word detected!")
-                model_answering = True
-                is_generating = False
+                if should_wake:
+                    wake_word_detected = True
+                    pygame.mixer.music.load("sound_files/beep.flac")
+                    pygame.mixer.music.play()
 
-                jarvis_voice = "Brian"
-                response = random.choice(jarvis_responses)
-                audio = client.generate(text=response, voice=jarvis_voice)
-                play(audio)
+                    print("✅ Wake word detected!")
+                    model_answering = True
+                    is_generating = False
 
-                model_answering = False
-                is_generating = True
+                    response = random.choice(jarvis_responses)
+                    audio = client.generate(text=response, voice=jarvis_voice)
+                    play(audio)
+
+                    model_answering = False
+                    is_generating = True
+                    continue
+
 
             elif user_input == "излез":
                 print("Goodbye!")
-                jarvis_voice = "Brian"
                 audio = client.generate(text="Goodbye!", voice=jarvis_voice)
                 play(audio)
                 break
@@ -463,6 +514,8 @@ def chatbot():
             # Actively listen for commands
             print("Listening for commands...")
             user_input = record_text()
+            #show_live_caption_text(user_input)
+
             if user_input is None:
                 print("Error: No input detected.")
                 continue
@@ -486,6 +539,94 @@ def chatbot():
                 play(audio)
                 model_answering = False
                 is_generating = False
+                continue
+
+
+            if "смениш" in user_input and "глас" in user_input:
+                model_answering = True
+                is_generating = False
+
+                audios = [
+                    client.generate(text="Разбира се, с кой глас бихте желали да говоря? "
+                                         "Имам следните гласове на разположение: Брайън", voice=jarvis_voice),
+                    client.generate(text="Джесика", voice=voices[1]),
+                    client.generate(text="Роджър", voice=voices[2]),
+                    client.generate(text="и Саманта. Кой глас бихте предпочели?", voice=voices[3])
+                ]
+
+                for audio in audios:
+                    play(audio)
+
+                print("Listening for voice choice...")
+                user_input = record_text()
+
+                if "брайън" in user_input or "brian" in user_input:
+                    jarvis_voice = voices[0]
+                elif "джесика" in user_input or "jessica" in user_input:
+                    jarvis_voice = voices[1]
+                elif "роджър" in user_input or "roger" in user_input:
+                    jarvis_voice = voices[2]
+                elif "саманта" in user_input or "samantha" in user_input:
+                    jarvis_voice = voices[3]
+
+                audio = client.generate(text=f"Супер, смених гласа на {jarvis_voice}", voice=jarvis_voice)
+                play(audio)
+
+                model_answering = False
+                is_generating = False
+                wake_word_detected = False
+                continue
+
+            if "смениш" in user_input and "име" in user_input:
+                model_answering = True
+                is_generating = False
+
+                audio = client.generate(text="Разбира се, как бихте желали да се казвам?", voice=jarvis_voice)
+                play(audio)
+
+                print("Listening for name choice...")
+                user_input = record_text()
+
+                if user_input is None:
+                    audio = client.generate(text="Нe можах да разбера. Може ли да повторите?", voice=jarvis_voice)
+                    play(audio)
+                    user_input = record_text()
+
+                audio = client.generate(text=f"Супер, от сега нататък можете да ме наричате {user_input}", voice=jarvis_voice)
+                play(audio)
+
+                jarvis_name = user_input
+
+                model_answering = False
+                is_generating = False
+                wake_word_detected = False
+                continue
+
+            if "смениш" in user_input and "модел" in user_input:
+                model_answering = True
+                is_generating = False
+
+                audio = client.generate(text="Разбира се, кой модел желаете да използвате?"
+                                             "Разполагам с Gemini(който в момента го използвате), Llama 3 и DeepSeek", voice=jarvis_voice)
+                play(audio)
+
+                print("Listening for model choice...")
+                user_input = record_text()
+
+                if user_input is None:
+                    audio = client.generate(text="Нe можах да разбера. Може ли да повторите?", voice=jarvis_voice)
+                    play(audio)
+                    user_input = record_text()
+
+                audio = client.generate(text=f"Супер, избрахте {user_input} за модел",
+                                        voice=jarvis_voice)
+                play(audio)
+
+                selected_model = user_input
+
+                model_answering = False
+                is_generating = False
+                wake_word_detected = False
                 continue
 
 
@@ -516,30 +657,29 @@ def chatbot():
                     play(audio)
 
                     print("Listening for specific song...")
-                    user_input = record_text()
+                    user_song = record_text()
 
-                    audio = client.generate(text=f"Пускам, {user_input}",
+                    song_from_ai = chat.send_message({
+                        "parts": (
+                                "Твоята цел е да предложиш песен според това, което user-a е казал. "
+                                "Ако user-a споменава конкретен изпълнител, предложи песен **само от този изпълнител**. "
+                                "Отговори само с името на песента и изпълнителя, без нищо друго. "
+                                "- " + user_song
+                        )
+                    })
+
+                    audio = client.generate(text=f"Пускам, {song_from_ai.text}",
                                             voice=jarvis_voice)
                     play(audio)
 
-                    track_name = user_input
-                    result = sp.search(q=track_name, limit=1)
+                    play_song(song_from_ai.text)
 
-                    # Get the song's URI
-                    track_uri = result['tracks']['items'][0]['uri']
-                    print(f"Playing track: {track_name}")
+                    print(f"Playing track: {song_from_ai.text}")
+                    update_status(f"Played {song_from_ai.text}")
 
-                    # Get the current device
-                    devices = sp.devices()
-                    # Find the LAPTOP_KOSI device by its ID
-                    pc_device_id = '7993e31456b6d73672f9c7bcee055fb10ae52f23'
-                    update_status(f"Played {track_name}")
-
-                    # Start playback on the LAPTOP_KOSI device
-                    sp.start_playback(device_id=pc_device_id, uris=[track_uri])
                     print("Playback started on LAPTOP_KOSI.")
 
-                elif "не" in user_input:
+                elif "не" in user_input or "изненадай ме" in user_input or "изненадай" in user_input:
                     model_answering = True
                     is_generating = False
 
@@ -548,20 +688,11 @@ def chatbot():
                     play(audio)
 
                     track_name = random.choice(selected_songs)
-                    result = sp.search(q=track_name, limit=1)
+                    play_song(track_name)
 
-                    # Get the song's URI
-                    track_uri = result['tracks']['items'][0]['uri']
                     print(f"Playing track: {track_name}")
-
-                    # Get the current device
-                    devices = sp.devices()
-                    # Find the LAPTOP_KOSI device by its ID
-                    pc_device_id = '7993e31456b6d73672f9c7bcee055fb10ae52f23'
                     update_status(f"Played {track_name}")
 
-                    # Start playback on the LAPTOP_KOSI device
-                    sp.start_playback(device_id=pc_device_id, uris=[track_uri])
                     print("Playback started on LAPTOP_KOSI.")
 
                 model_answering = False
@@ -715,14 +846,6 @@ def chatbot():
                 # Направи ми събитие за 3 следобяд днес, което да продължи 1 час, и да се казва "нахрани котката"pip install pywin32
 
 
-            if ("виждаш" in user_input or "вижда" in user_input) and "какво" in user_input:
-                gemini_vision()
-                update_status(f"Used Gemini Vision")
-                model_answering = False
-                is_generating = False
-                wake_word_detected = False
-                continue
-
             if ("съобщение" in user_input or "съобщения" in user_input) and "пратиш" in user_input:
                 # whatsapp_send_message()
                 generate_message(user_input)
@@ -732,6 +855,24 @@ def chatbot():
                 wake_word_detected = False
                 continue
 
+            if ("виждаш" in user_input or "вижда" in user_input) and "какво" in user_input:
+                gemini_vision()
+                update_status(f"Used Gemini Vision")
+                model_answering = False
+                is_generating = False
+                wake_word_detected = False
+                continue
+
+            if ("има" in user_input or "виж" in user_input) and ("екрана" in user_input or "екрa" in user_input):
+                text_from_screenshot = make_screenshot()
+
+                audio = client.generate(text=text_from_screenshot, voice=jarvis_voice)
+                play(audio)
+
+                model_answering = False
+                is_generating = False
+                wake_word_detected = False
+                continue
 
             if ("разпознаеш" in user_input or "коя" in user_input) and "песен" in user_input:
                 audio = client.generate(text="Разбира се, започвам да слушам. Ако разпозная песента ще ви кажа името и автора на песента",
@@ -870,6 +1011,8 @@ def chatbot():
                 if (selected_model == "Gemini"):
                     result = chat.send_message({"parts": [user_input]})
 
+                    #write_to_file("user", user_input)
+
                 elif(selected_model == "Llama3"):
                     result = ollama.chat(
                         model="tinyllama",
@@ -899,8 +1042,12 @@ def chatbot():
                 # Answering based on model
                 if (selected_model == "Gemini"):
                     print(f"Jarvis ({selected_model}): {result.text}")
+                    #show_live_caption_text(result.text)
+
                     audio = client.generate(text=result.text, voice=jarvis_voice)
                     play(audio)
+
+                    #write_to_file("model", result.text)
 
                 elif (selected_model == "Llama3"):
                     print(f"Jarvis ({selected_model}): {result['message']['content']}")
@@ -1006,3 +1153,7 @@ while running:
 
 # Quit Pygame
 pygame.quit()
+
+# TODO: To make Live Caption
+# TODO: To make screen recognition and description - done
+# TODO: To change voice/name by voice command and/or menu - done
