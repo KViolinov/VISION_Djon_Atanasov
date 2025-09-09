@@ -11,3 +11,4 @@ testing.spec
 vision.spec
 yolov8n.pt
 api_keys/
+jarvis_functions/send_message_instagram/
