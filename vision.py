@@ -1,21 +1,11 @@
 # vision ver 1.2 for live demo Djon Atanasov - 2025
 
-import io
 import os
-import re
 import math
 import pygame
 import random
 import spotipy
-import requests
-import dateparser
-import subprocess
 from enum import Enum
-
-from docx import Document
-import win32com.client as win32
-
-from PIL import ImageGrab
 
 import ollama
 from openai import OpenAI
@@ -25,21 +15,17 @@ import speech_recognition as sr
 from elevenlabs import play
 from elevenlabs.client import ElevenLabs
 
-from datetime import datetime, timedelta
-
 
 from jarvis_functions.call_phone_method import call_phone
-
 from jarvis_functions.shazam_method import recognize_audio
-from jarvis_functions.play_spotify import play_song
-
+from jarvis_functions.play_spotify import play_song, pause_music
 from jarvis_functions.whatsapp_messaging_method import whatsapp_send_message
-
 from jarvis_functions.send_message_instagram.send_message import *
 from jarvis_functions.send_message_instagram.input_to_message_ai import *
-
 from jarvis_functions.gemini_vision_method import gemini_vision
 from jarvis_functions.make_screenshot import make_screenshot
+from jarvis_functions.word_document import openWord
+from jarvis_functions.mail_related import send_email, create_appointment, readMail
 
 from api_keys.api_keys import ELEVEN_LABS_API, GEMINI_KEY, SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET
 
@@ -48,9 +34,6 @@ pygame.init()
 pygame.mixer.init()
 client = ElevenLabs(api_key=ELEVEN_LABS_API)
 r = sr.Recognizer()
-
-#tv lights
-WLED_IP = "192.168.10.211"
 
 # Seting up spotify
 client_id = SPOTIFY_CLIENT_ID
@@ -61,7 +44,6 @@ sp = spotipy.Spotify(auth_manager=spotipy.SpotifyOAuth(
     redirect_uri='http://localhost:8888/callback',
     scope='user-library-read user-read-playback-state user-modify-playback-state'))  # Scope for currently playing song
 
-jazz_playlist_url = "spotify:playlist/60joMYdXRjtwwfyERiGu4c?si=42cc553fb755446d"
 
 # Setting up Gemini
 os.environ["GEMINI_API_KEY"] = GEMINI_KEY
@@ -77,14 +59,7 @@ system_instruction = (
     "При представяне на информацията, да се има на предвид и да се адаптира за дете или тинейджър със сериозни зрителни проблеми"
 )
 
-chat = model.start_chat(
-    history=[
-        {
-            "role": "user",
-            "parts": [system_instruction],
-        }
-    ]
-)
+chat = model.start_chat(history=[{"role": "user","parts": [system_instruction],}])
 
 # Screen Dimensions
 # info = pygame.display.Info()
@@ -94,6 +69,7 @@ chat = model.start_chat(
 WIDTH, HEIGHT = 1920, 1080
 screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.RESIZABLE)
 pygame.display.set_caption("Jarvis Interface")
+
 
 class Color(Enum):
     BLACK = (0, 0, 0)
@@ -109,6 +85,7 @@ class Color(Enum):
     PURPLE1 = (166, 0, 255)
     PURPLE2 = (176, 28, 255)
 
+# Visual Config
 font_large = pygame.font.Font(None, 48)
 font_small = pygame.font.Font(None, 32)
 
@@ -142,6 +119,10 @@ target_color_1 = list(Color.BLUE.value)
 target_color_2 = list(Color.CYAN.value)
 color_transition_speed = 10
 
+# Ball initial random positions
+random_particles = [{"x": random.randint(0, WIDTH), "y": random.randint(0, HEIGHT),
+                     "dx": random.uniform(-2, 2), "dy": random.uniform(-2, 2)} for _ in range(num_particles)]
+
 jarvis_responses = [
     "Тук съм, как мога да помогна?",
     "Слушам, как мога да Ви асистирам?",
@@ -170,10 +151,6 @@ jarvis_name = "Джарвис"
 voices = ["Brian", "Jessica", "Roger", "Samantha"]
 jarvis_voice = voices[0] #deffault voice
 
-# Ball initial random positions
-random_particles = [{"x": random.randint(0, WIDTH), "y": random.randint(0, HEIGHT),
-                     "dx": random.uniform(-2, 2), "dy": random.uniform(-2, 2)} for _ in range(num_particles)]
-
 # State Variables
 model_answering = False
 is_collided = False
@@ -191,61 +168,6 @@ models = ["Gemini", "Llama3", "Deepseek"]
 selected_model = models[0]
 dropdown_open = False
 dropdown_rect = pygame.Rect(20, 120, 150, 30)  # position & size
-
-def send_email(subject, body, to_email):
-    outlook = win32.Dispatch('outlook.application')
-    mail = outlook.CreateItem(0)
-    mail.Subject = subject
-    mail.Body = body
-    mail.To = to_email
-    mail.Send()
-
-def parse_natural_time(natural_time):
-    """
-    Parses a natural language time expression (e.g., '3 часа следобяд днес', 'tomorrow', 'next Wednesday')
-    into a datetime object.
-    """
-
-    # Manually handle 'днес' and 'утре' since dateparser fails sometimes
-    now = datetime.now()
-
-    # Replace Bulgarian words with English for better parsing
-    normalized_time = (
-        natural_time.replace("днес", "today")
-        .replace("утре", "tomorrow")
-        .replace("следобяд", "PM")
-        .replace("сутринта", "AM")
-    )
-
-    # Try parsing with dateparser
-    event_time = dateparser.parse(
-        normalized_time,
-        languages=['bg', 'en'],  # Use both Bulgarian and English
-        settings={'PREFER_DATES_FROM': 'future'}
-    )
-
-    # If dateparser fails, manually handle simple cases
-    if event_time is None:
-        if "днес" in natural_time:
-            event_time = now.replace(hour=15, minute=0, second=0, microsecond=0)
-        elif "утре" in natural_time:
-            event_time = (now + timedelta(days=1)).replace(hour=15, minute=0, second=0, microsecond=0)
-        else:
-            raise ValueError(f"Could not parse the given time expression: {natural_time}")
-
-    return event_time
-
-def create_outlook_appointment(subject, start_time, duration):
-    outlook = win32.Dispatch("Outlook.Application")
-    appointment = outlook.CreateItem(1)  # 1 = olAppointmentItem
-
-    appointment.Subject = subject
-    appointment.Start = start_time
-    appointment.Duration = duration
-    appointment.ReminderMinutesBeforeStart = 15
-    appointment.Save()
-
-    print(f"✅ Appointment '{subject}' scheduled for {start_time}")
 
 def blend_color(current, target, speed):
     """Gradually transitions the current color toward the target color."""
@@ -340,24 +262,6 @@ def fetch_current_track():
     except Exception as e:
         print(f"Error fetching track: {e}")
         return None, None, None, 0, 0
-
-def load_album_cover(url):
-    """Download and convert the album cover image to a Pygame surface."""
-    try:
-        response = requests.get(url)
-        if response.status_code == 200:
-            image_data = io.BytesIO(response.content)
-            image = pygame.image.load(image_data, "jpg")
-            return pygame.transform.scale(image, (300, 300))  # Scale to 300x300
-    except Exception as e:
-        print(f"Error loading album cover: {e}")
-    return None
-
-def play_music():
-    sp.start_playback()  # Start playback (Play the song)
-
-def pause_music():
-    sp.pause_playback()  # Pause the playback (Stop the song)
 
 def draw_progress_bar(surface, x, y, width, height, progress, max_progress):
     """Draw a progress bar to represent the song timeline."""
@@ -514,6 +418,7 @@ def chatbot():
             # Actively listen for commands
             print("Listening for commands...")
             user_input = record_text()
+
             #show_live_caption_text(user_input)
 
             if user_input is None:
@@ -712,58 +617,9 @@ def chatbot():
                 model_answering = True
                 is_generating = False
 
-                audio = client.generate(text="Разбира се, към кого бихте желали да пратите имейла?", voice=jarvis_voice)
-                play(audio)
+                message = send_email(jarvis_voice)
 
-                print("Listening for email info...")
-                user_input = record_text()
-
-                if "тати" in user_input or "баща ми" in user_input:
-                    to_email = "bojidarbojinov@outlook.com"
-                elif "мама" in user_input or "майка ми" in user_input:
-                    to_email = "kameliqbojinova@outlook.com"
-
-                audio = client.generate(text="Каква ще е темата на вашето писмо?", voice=jarvis_voice)
-                play(audio)
-
-                print("Listening for email info...")
-                subject = record_text()
-
-                audio = client.generate(text="Какво искате да изпратите?", voice=jarvis_voice)
-                play(audio)
-
-                print("Listening for email info...")
-                body = record_text()
-
-                audio = client.generate(text="Супер, преди да изпратя имейла, ще ви кажа какво съм си записал",
-                                        voice=jarvis_voice)
-                play(audio)
-
-                if to_email == "bojidarbojinov@outlook.com":
-                    audio = client.generate(text="Имейла е към Божидар Божинов (баща ви)", voice=jarvis_voice)
-                    play(audio)
-                elif to_email == "kameliqbojinova@outlook.com":
-                    audio = client.generate(text="Имейла е към Камелия Божинова (майка ви)", voice=jarvis_voice)
-                    play(audio)
-                audio = client.generate(text="Темата на писмото е " + subject + "И съдържанието на писмото е " + body,
-                                        voice=jarvis_voice)
-                play(audio)
-
-                audio = client.generate(text="Всичко наред ли е с информацията в писмото?", voice=jarvis_voice)
-                play(audio)
-
-                print("Listening for approval...")
-                user_input = record_text()
-
-                if "да" in user_input:
-                    audio = client.generate(text="✅ Супер, пращам имейла", voice=jarvis_voice)
-                    play(audio)
-                    send_email(subject, body, to_email)
-                    update_status(f"Sent an email to {to_email}")
-
-                elif "не" in user_input:
-                    audio = client.generate(text="Сорка", voice=jarvis_voice)
-                    play(audio)
+                update_status(f"Sent an email to {message}")
 
                 model_answering = False
                 is_generating = False
@@ -771,34 +627,10 @@ def chatbot():
                 continue
 
             if "прочетеш" in user_input and ("писма" in user_input or "имейли" in user_input or "пис" in user_input):
-                # Initialize Outlook
-                outlook = win32.Dispatch("Outlook.Application").GetNamespace("MAPI")
-                inbox = outlook.GetDefaultFolder(6)  # 6 = Inbox
 
-                # Get all messages sorted by received time (newest first)
-                messages = inbox.Items
-                messages.Sort("[ReceivedTime]", True)  # Sort descending (newest first)
+                readMail(jarvis_voice)
 
-                # Retrieve the last 5 emails
-                num_emails = 3  # Change this number if you need more
-                latest_messages = [messages.GetNext() for _ in range(num_emails)]
-
-                audio = client.generate(text="Ето последните 3 имейла в пощата ви: ", voice=jarvis_voice)
-                play(audio)
-                # Print email details
-                for i, email in enumerate(latest_messages, start=1):
-                    print(f"\n📧 Email {i}:")
-                    print(f"Subject: {email.Subject}")
-                    print(f"From: {email.SenderName}")
-                    print(f"Received: {email.ReceivedTime}")
-                    print("\n--- Email Body ---\n")
-                    print(email.Body)  # Full email body
-                    print("\n--- End of Email ---\n")
-                    audio = client.generate(text=f"Имейл номер {i}, изпратено е от {email.SenderName}, "
-                                                 f"темата е {email.Subject}, а съдържанието на писмото е {email.Body}", voice=jarvis_voice)
-                    play(audio)
-
-                update_status(f"Read last 3 emails")
+                update_status(f"Прочете последните 3 имейла")
                 model_answering = False
                 is_generating = False
                 wake_word_detected = False
@@ -806,50 +638,23 @@ def chatbot():
 
             if (("събитие" in user_input or "събити" in user_input or "събития" in user_input)
                     and ("създадеш" in user_input or "Създадеш" in user_input or "създай" in user_input or "Създай" in user_input)):
-                # subject of event
-                audio = client.generate(text="Разбира се, как искате да се казва събитието?", voice=jarvis_voice)
-                play(audio)
 
-                print("Listening for apointment info...")
-                subject = record_text()
+                create_appointment(jarvis_voice)
 
-                # time of event
-                audio = client.generate(text="За кога да бъде това събитие?", voice=jarvis_voice)
-                play(audio)
-
-                print("Listening for apointment info...")
-                user_input = record_text()
-
-                # duration of event
-                audio = client.generate(text="Колко време ще продължи това събитие?", voice=jarvis_voice)
-                play(audio)
-
-                print("Listening for apointment info...")
-                duration = record_text()
-
-                try:
-                    event_time = parse_natural_time(user_input)
-                    print(f"Parsed event time: {event_time}")  # Debug output
-                    audio = client.generate(
-                        text=f"Супер, запазвам събитие {subject}, в {event_time.strftime('%H:%M %d-%m-%Y')}, и ще трае 1 час",
-                        voice=jarvis_voice)
-                    play(audio)
-                    create_outlook_appointment(subject, event_time, duration = 60)
-                    update_status(f"Made an event in the calendar")
-                    model_answering = False
-                    is_generating = False
-                    wake_word_detected = False
-                    continue
-                except ValueError as e:
-                    print(f"❌ Error: {e}")
+                update_status(f"Made an event in the calendar")
+                model_answering = False
+                is_generating = False
+                wake_word_detected = False
+                continue
 
                 # Направи ми събитие за 3 следобяд днес, което да продължи 1 час, и да се казва "нахрани котката"pip install pywin32
 
 
-            if ("съобщение" in user_input or "съобщения" in user_input) and "пратиш" in user_input:
+            if ("съобщение" in user_input or "съобщения" in user_input) and "пратиш" in user_input: # currently not working, needs testing
                 # whatsapp_send_message()
                 generate_message(user_input)
 
+                update_status("Изпрати съобщение")
                 model_answering = False
                 is_generating = False
                 wake_word_detected = False
@@ -857,7 +662,8 @@ def chatbot():
 
             if ("виждаш" in user_input or "вижда" in user_input) and "какво" in user_input:
                 gemini_vision()
-                update_status(f"Used Gemini Vision")
+
+                update_status(f"Използва Gemini Vision за камерата")
                 model_answering = False
                 is_generating = False
                 wake_word_detected = False
@@ -869,6 +675,7 @@ def chatbot():
                 audio = client.generate(text=text_from_screenshot, voice=jarvis_voice)
                 play(audio)
 
+                update_status("Използва Gemini Vision за скрийншот")
                 model_answering = False
                 is_generating = False
                 wake_word_detected = False
@@ -895,22 +702,7 @@ def chatbot():
                         audio = client.generate(text=f"Пускам, {title} на {artist}",
                                                 voice=jarvis_voice)
                         play(audio)
-                        track_name = {title}
-                        result = sp.search(q=track_name, limit=1)
-
-                        # Get the song's URI
-                        track_uri = result['tracks']['items'][0]['uri']
-                        print(f"Playing track: {track_name}")
-
-                        # Get the current device
-                        devices = sp.devices()
-                        # Find the LAPTOP_KOSI device by its ID
-                        pc_device_id = '7993e31456b6d73672f9c7bcee055fb10ae52f23'
-                        update_status(f"Played {track_name}")
-
-                        # Start playback on the LAPTOP_KOSI device
-                        sp.start_playback(device_id=pc_device_id, uris=[track_uri])
-                        print("Playback started on LAPTOP_KOSI.")
+                        play_song(title)
 
                     elif "не" in answer_info:
                         model_answering = False
@@ -920,7 +712,7 @@ def chatbot():
                 else:
                     print("No song found")
 
-                update_status(f"Used Shazam")
+                update_status(f"Използва Shazam и отрки {title}")
                 model_answering = False
                 is_generating = False
                 wake_word_detected = False
@@ -928,74 +720,8 @@ def chatbot():
 
             if (("отвори" in user_input or "отвориш" in user_input or "отвориш" in user_input ) # currently not working
                     and ("word" in user_input or "wor" in user_input or "документ" in user_input)):
-                # Initialize document
-                doc = Document()
 
-                # Open Word
-                audio = client.generate(text="Разбира се, отварям Word. Само секунда", voice=jarvis_voice)
-                play(audio)
-
-                # Wait a bit to ensure Word has opened
-                time.sleep(2)
-
-                # Ask for document title
-                audio = client.generate(
-                    text="Готов съм. Преди да започнем, как ще желаете да е заглавието на документа?",
-                    voice=jarvis_voice)
-                play(audio)
-
-                # Listen for the title input
-                print("Listening for title...")
-                input_text = record_text()
-
-                # Add a title
-                doc.add_heading(input_text, 0)
-
-                # Inform the user
-                audio = client.generate(
-                    text="Добре започвам да слушам и записвам. Кажете думата Край за да спра да записвам",
-                    voice=jarvis_voice)
-                play(audio)
-
-                words_in_document = ""
-
-                while True:
-                    with sr.Microphone() as source:
-                        try:
-                            print("Listening for input...")
-                            input_text = record_text()
-                            print(f"You said: {input_text}")
-
-                            # Skip if input_text is None (empty or unrecognized speech)
-                            if input_text is None or input_text.strip() == "":
-                                print("No speech detected or input is empty, try again.")
-                                continue  # Skip to the next loop iteration
-
-                            # Stop listening when "край" is said
-                            if "край" in input_text or "Край" in input_text:
-                                audio = client.generate(text="Спрях да записвам, файла е запазен в папка Downloads",
-                                                        voice=jarvis_voice)
-                                play(audio)
-                                # Add a paragraph
-                                doc.add_paragraph(words_in_document)
-                                break
-
-                            # Append the valid input to the document
-                            words_in_document += input_text + ". "
-
-                            time.sleep(1)  # Slight delay for realism
-
-                        except sr.UnknownValueError:
-                            print("Could not understand, try again.")
-                        except sr.RequestError:
-                            print("Speech recognition service error.")
-
-                # Finished
-                print("Document saved and process ended.")
-
-                file_path = r'D:\example.docx'
-                doc.save(file_path)
-                os.system(f'start {file_path}')  # Open Word on Windows
+                openWord(jarvis_voice)
 
                 update_status(f"Made a Word document")
                 model_answering = False
@@ -1155,5 +881,3 @@ while running:
 pygame.quit()
 
 # TODO: To make Live Caption
-# TODO: To make screen recognition and description - done
-# TODO: To change voice/name by voice command and/or menu - done

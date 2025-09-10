@@ -27,3 +27,9 @@ def play_song(user_input:str):
 
     # Start playback on the LAPTOP_KOSI device
     sp.start_playback(device_id=pc_device_id, uris=[track_uri])
+
+def play_music():
+    sp.start_playback()  # Start playback (Play the song)
+
+def pause_music():
+    sp.pause_playback()  # Pause the playback (Stop the song)
