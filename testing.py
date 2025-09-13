@@ -76,42 +76,6 @@
 
 
 
-
-
-
-
-
-# import pyautogui
-# import time
-# import webbrowser
-#
-# # The URL you want to open
-# url_to_open = "https://www.instagram.com/direct/t/106491827536886/"  # Replace with your specific Instagram URL
-#
-# print(f"Opening {url_to_open} in your default web browser...")
-#
-# webbrowser.open(url_to_open, new=2)
-#
-# print("Browser opened. Giving it some time to load.")
-# time.sleep(15)  # Give the browser time to open and load the page
-#
-# pyautogui.typewrite("mlukni be turchin takuv! - izprateno ot Jarvis")
-#
-# # Press "Enter" to send the message
-# pyautogui.press("enter")
-#
-# # Wait briefly to ensure the message is sent
-# time.sleep(2)
-#
-# # Close the browser tab (Ctrl + W or Cmd + W)
-# pyautogui.hotkey("ctrl", "w")  # Use "cmd" instead of "ctrl" if on macOS
-#
-# print("Browser tab closed.")
-
-
-
-
-
 # from jarvis_functions.send_message_instagram.input_to_message_ai import *
 #
 # text = "Искам да пратиш съобщение на Мерт, че е тъп турчин и ще му избием зъбите"
@@ -226,16 +190,150 @@
 # ser.close()
 # print("Connection is ended.")
 
+import pygame
+import sys
+import importlib
+import api_keys
 
-from spotipy import Spotify
-from spotipy.oauth2 import SpotifyOAuth
+pygame.init()
 
-sp = Spotify(auth_manager=SpotifyOAuth(
-    client_id="dacc19ea9cc44decbdcb2959cd6eb74a",
-    client_secret="11e970f059dc4265a8fe64aaa80a82bf",
-    redirect_uri="http://localhost:8888/callback",
-    scope="user-read-playback-state,user-modify-playback-state"
-))
+# === Window setup ===
+WIDTH, HEIGHT = 800, 600
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Jarvis with Settings")
 
-devices = sp.devices()
-print(devices)
+# === Fonts ===
+font_small = pygame.font.Font(None, 28)
+font_large = pygame.font.Font(None, 40)
+
+# === Colors ===
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+GRAY = (60, 60, 60)
+ORANGE = (255, 165, 0)
+
+# === Settings UI State ===
+settings_open = False
+settings_rect = pygame.Rect(WIDTH - 120, HEIGHT - 50, 100, 40)
+active_input = None
+input_boxes = {}
+inputs = {}
+
+# === Load API keys dynamically ===
+def load_api_keys():
+    importlib.reload(api_keys)
+    return {
+        "ELEVEN_LABS_API": api_keys.ELEVEN_LABS_API,
+        "GEMINI_KEY": api_keys.GEMINI_KEY,
+        "SPOTIFY_CLIENT_ID": api_keys.SPOTIFY_CLIENT_ID,
+        "SPOTIFY_CLIENT_SECRET": api_keys.SPOTIFY_CLIENT_SECRET
+    }
+
+# === Save API keys to file ===
+def save_api_keys(updated):
+    with open("api_keys/api_keys.py", "w") as f:
+        for key, value in updated.items():
+            f.write(f'{key} = "{value}"\n')
+
+# === Setup input fields ===
+def setup_inputs():
+    global input_boxes, inputs
+    keys = load_api_keys()
+    inputs = keys.copy()
+    input_boxes = {}
+    start_y = 100
+    for i, (k, v) in enumerate(keys.items()):
+        rect = pygame.Rect(200, start_y + i * 60, 400, 35)
+        input_boxes[k] = rect
+
+setup_inputs()
+
+# === Draw text helper ===
+def draw_text(surface, text, pos, font, color):
+    txt = font.render(text, True, color)
+    surface.blit(txt, pos)
+
+# === Main loop ===
+clock = pygame.time.Clock()
+running = True
+while running:
+    screen.fill(GRAY)
+    mouse_pos = pygame.mouse.get_pos()
+
+    # --- Events ---
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            if settings_rect.collidepoint(mouse_pos):
+                settings_open = not settings_open
+                if settings_open:
+                    setup_inputs()
+            if settings_open:
+                for key, rect in input_boxes.items():
+                    if rect.collidepoint(mouse_pos):
+                        active_input = key
+                        break
+                else:
+                    active_input = None
+
+            # Close button
+            if settings_open:
+                close_rect = pygame.Rect(WIDTH//2 + 200 - 40, HEIGHT//2 - 200 + 10, 30, 30)
+                if close_rect.collidepoint(mouse_pos):
+                    settings_open = False
+
+            # Save button
+            if settings_open:
+                save_rect = pygame.Rect(WIDTH//2 - 50, HEIGHT//2 + 150, 100, 40)
+                if save_rect.collidepoint(mouse_pos):
+                    save_api_keys(inputs)
+                    settings_open = False
+
+        elif event.type == pygame.KEYDOWN and active_input:
+            if event.key == pygame.K_BACKSPACE:
+                inputs[active_input] = inputs[active_input][:-1]
+            elif event.key == pygame.K_RETURN:
+                active_input = None
+            else:
+                inputs[active_input] += event.unicode
+
+    # --- Draw settings button ---
+    pygame.draw.rect(screen, WHITE, settings_rect, border_radius=10)
+    draw_text(screen, "⚙ Settings", (settings_rect.x + 5, settings_rect.y + 10), font_small, BLACK)
+
+    # --- Draw popup ---
+    if settings_open:
+        popup_width, popup_height = 500, 400
+        popup_x = (WIDTH - popup_width) // 2
+        popup_y = (HEIGHT - popup_height) // 2
+        popup_rect = pygame.Rect(popup_x, popup_y, popup_width, popup_height)
+
+        pygame.draw.rect(screen, (30, 30, 30), popup_rect, border_radius=15)
+        pygame.draw.rect(screen, WHITE, popup_rect, 2, border_radius=15)
+
+        draw_text(screen, "Settings", (popup_x + 20, popup_y + 20), font_large, WHITE)
+
+        # Draw inputs
+        for i, (key, rect) in enumerate(input_boxes.items()):
+            pygame.draw.rect(screen, WHITE if active_input == key else BLACK, rect, 2)
+            text_surface = font_small.render(inputs[key], True, WHITE)
+            screen.blit(text_surface, (rect.x + 5, rect.y + 5))
+            draw_text(screen, key, (rect.x - 180, rect.y + 5), font_small, WHITE)
+
+        # Close button
+        close_rect = pygame.Rect(popup_x + popup_width - 40, popup_y + 10, 30, 30)
+        pygame.draw.rect(screen, ORANGE, close_rect, border_radius=5)
+        draw_text(screen, "X", (close_rect.x + 8, close_rect.y + 5), font_small, BLACK)
+
+        # Save button
+        save_rect = pygame.Rect(popup_x + popup_width//2 - 50, popup_y + popup_height - 60, 100, 40)
+        pygame.draw.rect(screen, ORANGE, save_rect, border_radius=10)
+        draw_text(screen, "Save", (save_rect.x + 20, save_rect.y + 8), font_small, BLACK)
+
+    pygame.display.flip()
+    clock.tick(60)
+
+pygame.quit()
+sys.exit()
