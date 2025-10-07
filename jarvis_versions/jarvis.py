@@ -313,7 +313,7 @@ def chatbot():
 
                 wake_word_detected = True
                 current_model = "Jarvis"
-                pygame.mixer.music.load("sound_files/beep.flac")
+                pygame.mixer.music.load("../sound_files/beep.flac")
                 pygame.mixer.music.play()
 
                 print("✅ Wake word detected!")

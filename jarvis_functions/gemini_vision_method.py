@@ -1,42 +1,20 @@
+import os
 import cv2
+import time
+import pygame
 from PIL import Image
 import google.generativeai as genai
-import os
-import speech_recognition as sr
-from elevenlabs import play
-from elevenlabs.client import ElevenLabs
-import time
-from api_keys.api_keys import ELEVEN_LABS_API, GEMINI_KEY
-import pygame
+from dotenv import load_dotenv
 
-client = ElevenLabs(api_key=ELEVEN_LABS_API)
-r = sr.Recognizer()
+load_dotenv()
 
-def record_text():
-    """Listen for speech and return the recognized text."""
-    try:
-        with sr.Microphone() as source:
-            #print("Listening...")
-            r.adjust_for_ambient_noise(source, duration=0.2)
-            audio = r.listen(source)
+from jarvis_functions.essential_functions.enhanced_elevenlabs import generate_audio_from_text
 
-            # Recognize speech using Google API
-            MyText = r.recognize_google(audio, language="bg-BG")
-            print(f"You said: {MyText}")
-            return MyText.lower()
-
-    except sr.RequestError as e:
-        print(f"API Request Error: {e}")
-        return None
-    except sr.UnknownValueError:
-        print("Sorry, I didn't catch that. Please try again.")
-        return None
-
-os.environ["GEMINI_API_KEY"] = GEMINI_KEY
+os.environ["GEMINI_API_KEY"] = os.getenv("GEMINI_KEY")
 
 genai.configure(api_key=os.environ["GEMINI_API_KEY"])
 
-model = genai.GenerativeModel(model_name="gemini-1.5-flash")
+model = genai.GenerativeModel(model_name="gemini-2.5-flash")
 
 system_instruction = (
     "Вие сте Джарвис, полезен и информативен AI асистент."
@@ -56,23 +34,6 @@ chat = model.start_chat(
 
 
 def gemini_vision():
-    # # Open the webcam
-    # audio = client.generate(text="Камерата по подразбиране ли да използвам?", voice="Brian")
-    # play(audio)
-    #
-    # print("Listening for camera info...")
-    # camera_info = record_text()
-
-    # if "да" in camera_info:
-    #     cap = cv2.VideoCapture(0)
-    #     audio = client.generate(text="Добре, използвам web камерата на компютъра ви", voice="Brian")
-    #     play(audio)
-    # elif "не" in camera_info or "другата" in camera_info:
-    #     cap = cv2.VideoCapture(1)
-    #     audio = client.generate(text="Добре, използвам камерата от ви ар хедсета",
-    #                             voice="Brian")
-    #     play(audio)
-
     cap = cv2.VideoCapture(1)
     if not cap.isOpened():
         print("Error: Could not open webcam.")
@@ -150,5 +111,4 @@ def gemini_vision():
     # Print the AI's response
     print("\nAI Response:")
     print(response.text)
-    audio = client.generate(text=response.text, voice="Brian")
-    play(audio)
+    generate_audio_from_text(text=response.text, voice="Brian")

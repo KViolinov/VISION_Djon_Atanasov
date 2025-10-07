@@ -6,10 +6,9 @@ __pycache__/
 faces/
 model_data/
 .cache
-PyWhatkit_DB.txt
-testing.spec
-vision.spec
-yolov8n.pt
+external/PyWhatKit_DB.txt
+external/testing.spec
+external/vision.spec
+external/yolov8n.pt
 api_keys/
 jarvis_functions/send_message_instagram/
-jarvis_functions/face_recognition.py

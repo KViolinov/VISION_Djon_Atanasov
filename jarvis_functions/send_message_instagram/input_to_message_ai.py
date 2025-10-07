@@ -5,7 +5,7 @@ from api_keys.api_keys import GEMINI_KEY
 
 def generate_message(text: str):
     genai.configure(api_key=GEMINI_KEY)
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel("gemini-2.5-flash")
 
     prompt = (
         "Ще ти дам текст, който трябва да бъде изпратен на потребител в Instagram. "

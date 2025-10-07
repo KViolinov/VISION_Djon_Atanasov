@@ -1,15 +1,19 @@
+import os
 import spotipy
 
-from api_keys.api_keys import ELEVEN_LABS_API, GEMINI_KEY, SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Seting up spotify
-client_id = SPOTIFY_CLIENT_ID
-client_secret = SPOTIFY_CLIENT_SECRET
+client_id = os.getenv("SPOTIFY_CLIENT_ID")
+client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
 sp = spotipy.Spotify(auth_manager=spotipy.SpotifyOAuth(
     client_id=client_id,
     client_secret=client_secret,
     redirect_uri='http://localhost:8888/callback',
     scope='user-library-read user-read-playback-state user-modify-playback-state'))  # Scope for currently playing song
+
 
 ac_dc_playlist_url = "spotify:playlist:1HbAhSztnIcp67DbQBRw9j?si=cd8a3c6e5d8a4e41"
 

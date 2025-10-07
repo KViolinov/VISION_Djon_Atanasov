@@ -15,29 +15,32 @@ import speech_recognition as sr
 from elevenlabs import play
 from elevenlabs.client import ElevenLabs
 
+from dotenv import load_dotenv
 
-from jarvis_functions.call_phone_method import call_phone
 from jarvis_functions.shazam_method import recognize_audio
 from jarvis_functions.play_spotify import play_song, pause_music
 from jarvis_functions.whatsapp_messaging_method import whatsapp_send_message
 from jarvis_functions.send_message_instagram.send_message import *
 from jarvis_functions.send_message_instagram.input_to_message_ai import *
 from jarvis_functions.gemini_vision_method import gemini_vision
-from jarvis_functions.make_screenshot import make_screenshot
+from jarvis_functions.take_screenshot import take_screenshot
 from jarvis_functions.word_document import openWord
 from jarvis_functions.mail_related import send_email, create_appointment, readMail
 
-from api_keys.api_keys import ELEVEN_LABS_API, GEMINI_KEY, SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET
+#from api_keys.api_keys import ELEVEN_LABS_API, GEMINI_KEY, SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET
+
+load_dotenv()
+
 
 # Initialize Pygame
 pygame.init()
 pygame.mixer.init()
-client = ElevenLabs(api_key=ELEVEN_LABS_API)
+client = ElevenLabs(api_key=os.getenv("ELEVEN_LABS_API"))
 r = sr.Recognizer()
 
 # Seting up spotify
-client_id = SPOTIFY_CLIENT_ID
-client_secret = SPOTIFY_CLIENT_SECRET
+client_id = os.getenv("SPOTIFY_CLIENT_ID")
+client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
 sp = spotipy.Spotify(auth_manager=spotipy.SpotifyOAuth(
     client_id=client_id,
     client_secret=client_secret,
@@ -45,19 +48,35 @@ sp = spotipy.Spotify(auth_manager=spotipy.SpotifyOAuth(
     scope='user-library-read user-read-playback-state user-modify-playback-state'))  # Scope for currently playing song
 
 
-# Setting up Gemini
-os.environ["GEMINI_API_KEY"] = GEMINI_KEY
+os.environ["GEMINI_API_KEY"] = os.getenv("GEMINI_KEY")
 genai.configure(api_key=os.environ["GEMINI_API_KEY"])
 
-model = genai.GenerativeModel(model_name="gemini-1.5-flash")
+model = genai.GenerativeModel(model_name="gemini-2.5-flash")
+
+# system_instruction = (
+#     "Вие сте Джарвис, полезен и информативен AI асистент. "
+#     "Винаги отговаряйте професионално и кратко, но също се дръж приятелски. "
+#     "Поддържайте отговорите кратки, но информативни. "
+#     "Осигурете, че всички отговори са фактологически точни и лесни за разбиране. "
+#     "При представяне на информацията, да се има на предвид и да се адаптира за дете или тинейджър със сериозни зрителни проблеми. "
+#     # "Можете да използвате емоционални или звукови тагове като: "
+#     # "[laughs], [laughs harder], [starts laughing], [wheezing], "
+#     # "[whispers], [sighs], [exhales], [sarcastic], [curious], "
+#     # "[excited], [crying], [snorts], [mischievously] за да предадете тон или емоция, но не ги преизползвайте."
+# )
 
 system_instruction = (
-    "Вие сте Джарвис, полезен и информативен AI асистент."
-    "Винаги отговаряйте професионално и кратко, но също се дръж приятелски."
-    "Поддържайте отговорите кратки, но информативни."
-    "Осигурете, че всички отговори са фактологически точни и лесни за разбиране."
-    "При представяне на информацията, да се има на предвид и да се адаптира за дете или тинейджър със сериозни зрителни проблеми"
+    "Вие сте Джарвис, полезен и информативен AI асистент. "
+    "Винаги отговаряйте професионално и кратко, но също се дръж приятелски. "
+    "Поддържайте отговорите кратки, но информативни. "
+    "Осигурете, че всички отговори са фактологически точни и лесни за разбиране. "
+    "Когато е подходящо, добавяйте стилови маркери за емоция или начин на изразяване, "
+    "например [whispers], [laughs], [sarcastically], [cheerfully], [angrily], "
+    "за да подскажете на TTS как да чете текста. "
+    "Винаги оставяйте маркерите в скоби [] директно в текста."
 )
+
+
 
 chat = model.start_chat(history=[{"role": "user","parts": [system_instruction],}])
 
@@ -89,11 +108,9 @@ class Color(Enum):
 font_large = pygame.font.Font(None, 48)
 font_small = pygame.font.Font(None, 32)
 
-# Fonts
 font_large = pygame.font.Font(pygame.font.get_default_font(), 36)
 font_small = pygame.font.Font(pygame.font.get_default_font(), 20)
 
-# Clock
 clock = pygame.time.Clock()
 
 # Rotating Circle Parameters
@@ -151,7 +168,6 @@ jarvis_name = "Джарвис"
 voices = ["Brian", "Jessica", "Roger", "Samantha"]
 jarvis_voice = voices[0] #deffault voice
 
-# State Variables
 model_answering = False
 is_collided = False
 is_generating = False
@@ -167,7 +183,7 @@ song_duration = 0
 models = ["Gemini", "Llama3", "Deepseek"]
 selected_model = models[0]
 dropdown_open = False
-dropdown_rect = pygame.Rect(20, 120, 150, 30)  # position & size
+dropdown_rect = pygame.Rect(20, 120, 150, 30)
 
 def blend_color(current, target, speed):
     """Gradually transitions the current color toward the target color."""
@@ -308,45 +324,6 @@ def draw_dropdown(surface, x, y, w, h, font, options, selected, is_open):
             option_surface = font.render(option, True, Color.BLACK.value)
             surface.blit(option_surface, (x + 5, y + (h - option_surface.get_height()) // 2 + (i + 1) * h))
 
-def write_to_file(role:str, input:str):
-    if (role == "user"):
-        with open("history.txt", "a", encoding="utf-8") as file:
-            file.write("\nUser - " + input)
-
-    elif (role == "model"):
-        with open("history.txt", "a", encoding="utf-8") as file:
-            file.write("\nModel - " + input)
-
-def read_from_file():
-    with open("example.txt", "r", encoding="utf-8") as file:
-        lines = file.readlines()
-        print(lines)
-
-# def show_live_caption_text(text, position=(WIDTH // 2, HEIGHT // 2), font=None, color=(255, 255, 255)):
-#     if font is None:
-#         font = font_large
-#     text_surface = font.render(text, True, color)
-#     text_rect = text_surface.get_rect(center=position)
-#     alpha = 255
-#     fade_duration = 2  # seconds
-#     fade_steps = 30
-#     delay = fade_duration / fade_steps
-#
-#     # Show text for 2 seconds
-#     screen.blit(text_surface, text_rect)
-#     pygame.display.flip()
-#     time.sleep(2)
-#
-#     # Fade out
-#     for step in range(fade_steps):
-#         screen.fill(Color.BLACK.value)
-#         faded_surface = text_surface.copy()
-#         faded_surface.set_alpha(alpha)
-#         screen.blit(faded_surface, text_rect)
-#         pygame.display.flip()
-#         alpha = max(0, alpha - int(255 / fade_steps))
-#         time.sleep(delay)
-
 def record_text():
     """Listen for speech and return the recognized text."""
     try:
@@ -386,13 +363,12 @@ def chatbot():
                     if any(word in user_input_lower for word in ["джарвис", "джарви", "джервис", "jarvis", "черви"]):
                         should_wake = True
                 else:
-                    # For custom names, check if it's contained in the input
                     if jarvis_name.lower() in user_input_lower:
                         should_wake = True
 
                 if should_wake:
                     wake_word_detected = True
-                    pygame.mixer.music.load("sound_files/beep.flac")
+                    pygame.mixer.music.load("../sound_files/beep.flac")
                     pygame.mixer.music.play()
 
                     print("✅ Wake word detected!")
@@ -617,7 +593,7 @@ def chatbot():
                 model_answering = True
                 is_generating = False
 
-                message = send_email(jarvis_voice)
+                message = send_email()
 
                 update_status(f"Sent an email to {message}")
 
@@ -670,10 +646,12 @@ def chatbot():
                 continue
 
             if ("има" in user_input or "виж" in user_input) and ("екрана" in user_input or "екрa" in user_input):
-                text_from_screenshot = make_screenshot()
+                take_screenshot()
 
-                audio = client.generate(text=text_from_screenshot, voice=jarvis_voice)
-                play(audio)
+                # text_from_screenshot = take_screenshot()
+
+                # audio = client.generate(text=text_from_screenshot, voice=jarvis_voice)
+                # play(audio)
 
                 update_status("Използва Gemini Vision за скрийншот")
                 model_answering = False
@@ -731,13 +709,11 @@ def chatbot():
 
 
             if user_input:
-                # Start thinking state and selecting the model to use
+
                 is_generating = True
 
                 if (selected_model == "Gemini"):
                     result = chat.send_message({"parts": [user_input]})
-
-                    #write_to_file("user", user_input)
 
                 elif(selected_model == "Llama3"):
                     result = ollama.chat(
@@ -761,19 +737,15 @@ def chatbot():
                         max_tokens=1000
                     )
 
-                # Done generating the answer
                 is_generating = False
                 model_answering = True
 
-                # Answering based on model
                 if (selected_model == "Gemini"):
                     print(f"Jarvis ({selected_model}): {result.text}")
-                    #show_live_caption_text(result.text)
 
                     audio = client.generate(text=result.text, voice=jarvis_voice)
                     play(audio)
 
-                    #write_to_file("model", result.text)
 
                 elif (selected_model == "Llama3"):
                     print(f"Jarvis ({selected_model}): {result['message']['content']}")
@@ -789,6 +761,7 @@ def chatbot():
                 is_generating = False
 
             wake_word_detected = False
+
 # Main Loop
 running = True
 chatbot_thread = None
@@ -877,7 +850,6 @@ while running:
     pygame.display.flip()
     clock.tick(60)
 
-# Quit Pygame
 pygame.quit()
 
 # TODO: To make Live Caption
