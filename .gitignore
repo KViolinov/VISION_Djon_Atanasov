@@ -5,12 +5,7 @@ dist/
 __pycache__/
 model_data/
 .cache
-external/PyWhatKit_DB.txt
-external/testing.spec
-external/vision.spec
-external/yolov8n.pt
+external/
 api_keys/
-jarvis_functions/send_message_instagram/
-external
 .env
 testing.py

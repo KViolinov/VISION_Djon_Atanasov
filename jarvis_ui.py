@@ -2,6 +2,7 @@ import pygame
 import math
 import random
 from enum import Enum
+import difflib
 
 
 class Color(Enum):
@@ -79,7 +80,6 @@ class JarvisUI:
             "С какво мога да Ви бъда полезен?"
             # "Слушам шефе, как да помогна?"
         ]
-        self.jarvis_voice = "Brian"
 
         # Status list
         self.status_list = []
@@ -214,6 +214,22 @@ class JarvisUI:
         self.current_artist = artist if artist else ""
         self.current_progress = progress_ms
         self.song_duration = duration_ms
+
+    def fetch_current_track(self, sp):
+        try:
+            current_track = sp.currently_playing()
+            if current_track and current_track['is_playing']:
+                song = current_track['item']['name']
+                artist = ", ".join([a['name'] for a in current_track['item']['artists']])
+                album_cover_url = current_track['item']['album']['images'][0]['url']
+                progress_ms = current_track['progress_ms']
+                duration_ms = current_track['item']['duration_ms']
+                return song, artist, album_cover_url, progress_ms, duration_ms
+            return None, None, None, 0, 0
+        except Exception as e:
+            print(f"Error fetching track: {e}")
+            return None, None, None, 0, 0
+
 
     def render(self):
         """Main render method - call this every frame."""

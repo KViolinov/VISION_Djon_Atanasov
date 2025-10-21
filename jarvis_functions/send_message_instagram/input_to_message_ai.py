@@ -1,10 +1,14 @@
+import os
+
 import google.generativeai as genai
 from jarvis_functions.send_message_instagram.send_message import *
 
-from api_keys.api_keys import GEMINI_KEY
+import os
+from dotenv import load_dotenv
+load_dotenv()
 
 def generate_message(text: str):
-    genai.configure(api_key=GEMINI_KEY)
+    genai.configure(api_key=os.getenv("GEMINI_KEY"))
     model = genai.GenerativeModel("gemini-2.5-flash")
 
     prompt = (

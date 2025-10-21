@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 
 from jarvis_functions.essential_functions.enhanced_elevenlabs import generate_audio_from_text
 from jarvis_functions.essential_functions.voice_input import record_text
+from jarvis_functions.essential_functions.change_config_settings import *
 from jarvis_functions.shazam_method import recognize_audio
 from jarvis_functions.word_document import openWord
 from jarvis_functions.whatsapp_messaging_method import whatsapp_send_message
@@ -23,12 +24,10 @@ from jarvis_functions.gemini_vision_method import gemini_vision
 from jarvis_functions.call_phone_method import call_phone
 from jarvis_functions.send_message_instagram.input_to_message_ai import generate_message
 
-# Import the new UI class
 from jarvis_ui import JarvisUI
 
 load_dotenv()
 
-# Initialize Spotify
 client_id = os.getenv("SPOTIFY_CLIENT_ID")
 client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
 sp = spotipy.Spotify(auth_manager=spotipy.SpotifyOAuth(
@@ -37,7 +36,6 @@ sp = spotipy.Spotify(auth_manager=spotipy.SpotifyOAuth(
     redirect_uri='http://localhost:8888/callback',
     scope='user-library-read user-read-playback-state user-modify-playback-state'))
 
-# Initialize Gemini
 os.environ["GEMINI_API_KEY"] = os.getenv("GEMINI_KEY")
 genai.configure(api_key=os.environ["GEMINI_API_KEY"])
 
@@ -52,10 +50,10 @@ system_instructions = (
     "ти трябва да определиш дали е команда или просто въпрос."
 
     "Ако е въпрос, отговори на него кратко и информативно. "
-    "Когато е подходящо, добавяйте стилови маркери за емоция или начин на изразяване, "
-    "например [whispers], [laughs], [sarcastically], [cheerfully], [angrily], "
-    "за да подскажете на TTS как да чете текста. "
-    "Винаги оставяйте маркерите в скоби [] директно в текста."
+    # "Когато е подходящо, добавяйте стилови маркери за емоция или начин на изразяване, "
+    # "например [whispers], [laughs], [sarcastically], [cheerfully], [angrily], "
+    # "за да подскажете на TTS как да чете текста. "
+    # "Винаги оставяйте маркерите в скоби [] директно в текста."
 
     "Обаче ако е команда, трябва да напишеш 'command'."
     "След това на нов ред, трябва да напишеш името на функцията, която трябва да се извика (като събереш подходящата информация), "
@@ -83,27 +81,11 @@ chat = model.start_chat(history=[{"role": "user", "parts": [system_instructions]
 
 wake_word_detected = False
 
-# Initialize UI
 ui = JarvisUI(width=1920, height=1080, fullscreen=False)
 
-def fetch_current_track():
-    """Fetch the current playing track and its album cover."""
-    try:
-        current_track = sp.currently_playing()
-        if current_track and current_track['is_playing']:
-            song = current_track['item']['name']
-            artist = ", ".join([a['name'] for a in current_track['item']['artists']])
-            album_cover_url = current_track['item']['album']['images'][0]['url']
-            progress_ms = current_track['progress_ms']
-            duration_ms = current_track['item']['duration_ms']
-            return song, artist, album_cover_url, progress_ms, duration_ms
-        return None, None, None, 0, 0
-    except Exception as e:
-        print(f"Error fetching track: {e}")
-        return None, None, None, 0, 0
+config = load_config()
 
 def chatbot():
-    """Main chatbot logic."""
     global wake_word_detected
 
     print("Welcome to Vision! Say any of the models name to activate. Say 'exit' to quit.")
@@ -118,7 +100,11 @@ def chatbot():
                 continue
 
             user_input_lower = user_input.lower()
-            if any(word in user_input_lower for word in ["джарвис", "джарви", "джервис", "jarvis", "черви"]):
+
+            jarvis_name = get_jarvis_name().lower()
+            jarvis_voice = get_jarvis_voice()
+
+            if jarvis_name == user_input_lower:
                 wake_word_detected = True
                 pygame.mixer.music.load("sound_files/beep.flac")
                 pygame.mixer.music.play()
@@ -128,7 +114,7 @@ def chatbot():
                 ui.is_generating = False
 
                 response = random.choice(ui.jarvis_responses)
-                generate_audio_from_text(text=response, voice=ui.jarvis_voice)
+                generate_audio_from_text(text=response, voice=jarvis_voice)
 
                 ui.model_answering = False
                 ui.is_generating = True
@@ -146,6 +132,7 @@ def chatbot():
         response = chat.send_message(user_input)
         text = response.text.strip()
 
+        # Clean and parse JSON
         try:
             clean_text = re.sub(r"```(?:json)?|```", "", text).strip()
             clean_text = clean_text.replace("'", '"')
@@ -153,13 +140,14 @@ def chatbot():
         except json.JSONDecodeError as e:
             print(f"⚠️ Could not parse JSON: {e}")
             wake_word_detected = False
+            ui.is_generating = False
             continue
 
         # Handle answer
         if data.get("response_type") == "answer":
             answer = data.get("answer", "")
             print("🤖 Jarvis:", answer)
-            generate_audio_from_text(answer, ui.jarvis_voice)
+            generate_audio_from_text(answer, jarvis_voice)
 
         # Handle command
         elif data.get("response_type") == "command":
@@ -188,7 +176,6 @@ def chatbot():
 
         wake_word_detected = False
 
-
 # Main Loop
 def main():
     running = True
@@ -209,7 +196,7 @@ def main():
         # Fetch current track periodically (every 3 seconds)
         current_time = pygame.time.get_ticks()
         if current_time - last_spotify_update > 3000:
-            song, artist, album_cover_url, progress_ms, duration_ms = fetch_current_track()
+            song, artist, album_cover_url, progress_ms, duration_ms = ui.fetch_current_track(sp)
             if song and artist:
                 ui.update_song_info(song, artist, progress_ms, duration_ms)
             last_spotify_update = current_time
@@ -218,7 +205,6 @@ def main():
         ui.render()
 
     ui.quit()
-
 
 if __name__ == "__main__":
     main()
