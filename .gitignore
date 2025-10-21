@@ -9,3 +9,4 @@ external/
 api_keys/
 .env
 testing.py
+.idea/
