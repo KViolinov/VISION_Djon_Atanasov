@@ -1,0 +1,184 @@
+<!--<!DOCTYPE html>-->
+<!--<html lang="en">-->
+<!--<head>-->
+<!--    <meta charset="UTF-8">-->
+<!--    <meta name="viewport" content="width=device-width, initial-scale=1.0">-->
+<!--    <title>Voice Wave Animation</title>-->
+<!--    <style>-->
+<!--        * {-->
+<!--            margin: 0;-->
+<!--            padding: 0;-->
+<!--            box-sizing: border-box;-->
+<!--        }-->
+
+<!--        body {-->
+<!--            background: linear-gradient(180deg, #000428 0%, #1a0b3d 100%);-->
+<!--            overflow: hidden;-->
+<!--            display: flex;-->
+<!--            flex-direction: column;-->
+<!--            justify-content: center;-->
+<!--            align-items: center;-->
+<!--            height: 100vh;-->
+<!--            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;-->
+<!--        }-->
+
+<!--        h1 {-->
+<!--            color: #ffffff;-->
+<!--            font-size: 2.5rem;-->
+<!--            font-weight: 300;-->
+<!--            margin-bottom: 15rem;-->
+<!--            letter-spacing: 0.5px;-->
+<!--        }-->
+
+<!--        canvas {-->
+<!--            display: block;-->
+<!--            position: absolute;-->
+<!--            bottom: 0;-->
+<!--        }-->
+<!--    </style>-->
+<!--</head>-->
+<!--<body>-->
+<!--    <h1>С какво мога да ви помогна?</h1>-->
+<!--    <canvas id="waveCanvas"></canvas>-->
+
+<!--    <script>-->
+<!--        const canvas = document.getElementById('waveCanvas');-->
+<!--        const ctx = canvas.getContext('2d');-->
+<!--        canvas.width = window.innerWidth;-->
+<!--        canvas.height = 300;-->
+
+<!--        let time = 0;-->
+<!--        let waves = [];-->
+<!--        let state = "idle";-->
+<!--        let color1 = [80, 120, 255];-->
+<!--        let color2 = [120, 160, 255];-->
+<!--        let targetColor1 = [80, 120, 255];-->
+<!--        let targetColor2 = [120, 160, 255];-->
+<!--        let transitionSpeed = 0.05;-->
+
+<!--        function initWaves() {-->
+<!--            waves = [-->
+<!--                { amplitude: 30, frequency: 0.008, speed: 0.02, phase: 0, opacity: 0.6 },-->
+<!--                { amplitude: 25, frequency: 0.01, speed: 0.025, phase: Math.PI / 4, opacity: 0.5 },-->
+<!--                { amplitude: 35, frequency: 0.006, speed: 0.018, phase: Math.PI / 2, opacity: 0.4 },-->
+<!--                { amplitude: 28, frequency: 0.009, speed: 0.022, phase: Math.PI, opacity: 0.5 },-->
+<!--                { amplitude: 32, frequency: 0.007, speed: 0.019, phase: Math.PI * 1.5, opacity: 0.45 }-->
+<!--            ];-->
+<!--        }-->
+
+<!--        function draw() {-->
+<!--            ctx.clearRect(0, 0, canvas.width, canvas.height);-->
+
+<!--            // Smooth color transition-->
+<!--            for (let i = 0; i < 3; i++) {-->
+<!--                color1[i] += (targetColor1[i] - color1[i]) * transitionSpeed;-->
+<!--                color2[i] += (targetColor2[i] - color2[i]) * transitionSpeed;-->
+<!--            }-->
+
+<!--            const baseY = canvas.height * 0.6;-->
+
+<!--            waves.forEach((wave, index) => {-->
+<!--                ctx.beginPath();-->
+
+<!--                for (let x = 0; x <= canvas.width; x += 1) {-->
+<!--                    const y = baseY + Math.sin(x * wave.frequency + time * wave.speed + wave.phase) * wave.amplitude;-->
+
+<!--                    if (x === 0) {-->
+<!--                        ctx.moveTo(x, y);-->
+<!--                    } else {-->
+<!--                        ctx.lineTo(x, y);-->
+<!--                    }-->
+<!--                }-->
+
+<!--                // Gradient stroke-->
+<!--                const gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);-->
+<!--                const r = color1[0] + (color2[0] - color1[0]) * (index / waves.length);-->
+<!--                const g = color1[1] + (color2[1] - color1[1]) * (index / waves.length);-->
+<!--                const b = color1[2] + (color2[2] - color1[2]) * (index / waves.length);-->
+
+<!--                gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0)`);-->
+<!--                gradient.addColorStop(0.1, `rgba(${r}, ${g}, ${b}, ${wave.opacity * 0.3})`);-->
+<!--                gradient.addColorStop(0.5, `rgba(${r}, ${g}, ${b}, ${wave.opacity})`);-->
+<!--                gradient.addColorStop(0.9, `rgba(${r}, ${g}, ${b}, ${wave.opacity * 0.3})`);-->
+<!--                gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);-->
+
+<!--                ctx.strokeStyle = gradient;-->
+<!--                ctx.lineWidth = 3;-->
+<!--                ctx.shadowBlur = 20;-->
+<!--                ctx.shadowColor = `rgba(${r}, ${g}, ${b}, 0.8)`;-->
+<!--                ctx.stroke();-->
+<!--            });-->
+
+<!--            ctx.shadowBlur = 0;-->
+<!--            time += 1;-->
+<!--            requestAnimationFrame(draw);-->
+<!--        }-->
+
+<!--        function switchState(newState) {-->
+<!--            state = newState;-->
+<!--            console.log(`Switching to ${state}`);-->
+<!--            if (state === "thinking") {-->
+<!--                targetColor1 = [255, 165, 0];-->
+<!--                targetColor2 = [255, 115, 0];-->
+<!--            } else if (state === "answering") {-->
+<!--                targetColor1 = [0, 219, 0];-->
+<!--                targetColor2 = [4, 201, 4];-->
+<!--            } else {-->
+<!--                targetColor1 = [80, 120, 255];-->
+<!--                targetColor2 = [120, 160, 255];-->
+<!--            }-->
+<!--        }-->
+
+<!--        window.addEventListener('resize', () => {-->
+<!--            canvas.width = window.innerWidth;-->
+<!--        });-->
+
+<!--        initWaves();-->
+<!--        draw();-->
+<!--    </script>-->
+<!--</body>-->
+<!--</html>-->
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glowing Orb Character</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="flash"></div>
+
+    <div class="recording-overlay hidden">
+      <div class="rec-dot"></div>
+      <span class="rec-text">REC</span>
+    </div>
+
+
+      <div class="orb-container color-blue">
+        <div class="orb"></div>
+        <div class="face">
+          <div class="pixelated-bg"></div>
+          <div class="pixelated-overlay"></div>
+          <div class="eyes">
+            <div class="eye eye-left"></div>
+            <div class="eye eye-right"></div>
+          </div>
+        </div>
+      </div>
+
+    <div id="status-bar" class="status-bar">
+      <span id="spotify-info">Not playing</span>
+      <span id="current-time"></span>
+    </div>
+
+
+    <script src="script.js"></script>
+
+</body>
+</html>
+
