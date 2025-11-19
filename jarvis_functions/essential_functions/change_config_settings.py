@@ -4,11 +4,13 @@ import os
 from jarvis_functions.essential_functions.voice_input import record_text
 from jarvis_functions.essential_functions.enhanced_elevenlabs import generate_audio_from_text
 
+from account.check_account import require_login
+
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 
 def load_config():
     if not os.path.exists(CONFIG_PATH):
-        default = {"jarvis_name": "Джарвис", "jarvis_voice": "Brian"}
+        default = {"jarvis_name": "Слави", "jarvis_voice": "Slavi"}
         save_config(default)
         return default
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
@@ -18,8 +20,9 @@ def save_config(data):
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
+@require_login
 def change_jarvis_voice():
-    voices = ["Brian", "Jessica", "Roger", "Samantha"]
+    voices = ["Brian", "Jessica", "Roger", "Slavi", "Samantha"]
     config = load_config()
 
     current_voice = config.get("jarvis_voice", "Brian")
@@ -32,6 +35,7 @@ def change_jarvis_voice():
     )
     generate_audio_from_text("Джесика", voice="Jessica")
     generate_audio_from_text("Роджър", voice="Roger")
+    generate_audio_from_text("Слави", voice="Slavi")
     generate_audio_from_text("и Саманта. Кой глас бихте предпочели?", voice="Samantha")
 
     print("🎙️ Listening for voice choice...")
@@ -43,8 +47,10 @@ def change_jarvis_voice():
         new_voice = voices[1]
     elif any(x in user_input for x in ["роджър", "roger"]):
         new_voice = voices[2]
-    elif any(x in user_input for x in ["саманта", "samantha"]):
+    elif any(x in user_input for x in ["слави", "slavi"]):
         new_voice = voices[3]
+    elif any(x in user_input for x in ["саманта", "samantha"]):
+        new_voice = voices[4]
     else:
         generate_audio_from_text("Не разбрах гласа. Ще оставя стария.", voice=current_voice)
         return
@@ -57,6 +63,7 @@ def change_jarvis_voice():
         voice=new_voice
     )
 
+@require_login
 def change_jarvis_name():
     config = load_config()
     current_voice = config.get("jarvis_voice", "Brian")
@@ -81,7 +88,13 @@ def change_jarvis_name():
         generate_audio_from_text("Все още не разбрах. Ще запазя старото име.", voice=current_voice)
 
 def get_jarvis_name() -> str:
-    return load_config().get("jarvis_name", "Джарвис")
+    return load_config().get("jarvis_name", "Слави")
 
 def get_jarvis_voice() -> str:
-    return load_config().get("jarvis_voice", "Brian")
+    return load_config().get("jarvis_voice", "Slavi")
+
+def get_wait_interval_seconds() -> int:
+    return load_config().get("wait_interval_seconds", 5)
+
+def get_type_discussion() -> str:
+    return load_config().get("type_discussion", "once")
